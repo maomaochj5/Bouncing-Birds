@@ -1,6 +1,47 @@
 #include <SFML/Graphics.hpp>
 #include <iostream>
 
+// 定义缓动函数
+float linearEase(float t, float b, float c, float d) {
+    return c * t / d + b;
+}
+
+float quadraticEaseInOut(float t, float b, float c, float d) {
+    t /= d / 2;
+    if (t < 1) return c / 2 * t * t + b;
+    t--;
+    return -c / 2 * (t * (t - 2) - 1) + b;
+}
+
+
+
+class Button {
+public:
+    Button(const sf::Texture& texture, const sf::Vector2f& position)
+            : m_texture(texture), m_sprite(texture), m_position(position) {}
+
+    void draw(sf::RenderWindow& window) {
+        m_sprite.setPosition(m_position);
+        m_sprite.
+
+        icon.setScale(scaleX, scaleY);
+        icon.setPosition(1359, 927);
+        window.draw(m_sprite);
+    }
+
+    bool isClicked(const sf::Vector2i& mousePos) {
+        sf::FloatRect bounds = m_sprite.getGlobalBounds();
+        return bounds.contains(static_cast<float>(mousePos.x), static_cast<float>(mousePos.y));
+    }
+
+private:
+    sf::Texture m_texture;
+    sf::Sprite m_sprite;
+    sf::Vector2f m_position;
+    sf::
+};
+
+
 int main()
 {
     // 创建窗口
@@ -30,18 +71,29 @@ int main()
 
     //接下来是首页的botton
 
-    sf::Texture iconTexture;
 
-    if (!iconTexture.loadFromFile("Images/start_icon.png")) {
+
+    sf::Texture buttonTexture;
+
+    if (!buttonTexture.loadFromFile("Images/start_icon.png")) {
         std::cerr << "Failed to load start icon" << std::endl;
         return -1; // 或者其他处理
     } else {
         std::cout << "Loaded start icon: "
-                  << iconTexture.getSize().x << "x" << iconTexture.getSize().y << std::endl;
+                  << buttonTexture.getSize().x << "x" << buttonTexture.getSize().y << std::endl;
     }
 
+
+    Button button(buttonTexture, sf::Vector2f(100, 100));
+
+    bool isTransitioning = false;
+    float transitionTime = 2.0f;
+    float currentTime = 0.0f;
+    sf::Color transitionColor = sf::Color::White;
+
+
     sf::Sprite icon;
-    icon.setTexture(iconTexture);
+    icon.setTexture(buttonTexture);
     icon.setScale(scaleX, scaleY);
     icon.setPosition(1359, 927);
 
@@ -55,16 +107,18 @@ int main()
             if (event.type == sf::Event::Closed)
                 window.close();
 
-            if (event.type == sf::Event::MouseButtonPressed) {
-                if (event.mouseButton.button == sf::Mouse::Left) {
-                    sf::Vector2i mousePos = sf::Mouse::getPosition(window);
-                    if (icon.getGlobalBounds().contains(mousePos.x, mousePos.y)) {
-                        // 鼠标点击在图标上，执行跳转操作
-                        // 例如：切换到另一个场景
-                        std::cout << "Icon clicked!" << std::endl;
-                    }
+            if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left) {
+                if (button.isClicked(sf::Mouse::getPosition(window))) {
+                    isTransitioning = true;
+                    currentTime = 0.0f;
                 }
             }
+
+
+
+
+
+
 
             //测试位置
             if (event.mouseButton.button == sf::Mouse::Right)
@@ -72,6 +126,19 @@ int main()
                 std::cout << "the right button was pressed" << std::endl;
                 std::cout << "mouse x: " << event.mouseButton.x << std::endl;
                 std::cout << "mouse y: " << event.mouseButton.y << std::endl;
+            }
+        }
+
+
+        if (isTransitioning) {
+            currentTime += clock.getElapsedTime().asSeconds();
+            if (currentTime >= transitionTime) {
+                isTransitioning = false;
+                currentTime = 0.0f;
+            } else {
+                // 选择缓动函数
+                float alpha = 255.0f * (1.0f - quadraticEaseInOut(currentTime, 0.0f, 1.0f, transitionTime));
+                transitionColor.a = static_cast<uint8_t>(alpha);
             }
         }
 
