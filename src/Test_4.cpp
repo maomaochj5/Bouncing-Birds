@@ -47,7 +47,7 @@ public:
         sprite.setTexture(textureManager.getTexture(textureFile));
         sprite.setOrigin(radius, radius);
         sprite.setPosition(position);
-        sprite.setScale(radius * 2 / sprite.getTexture()->getSize().x, radius * 2 / sprite.getTexture()->getSize().y);
+        sprite.setScale(radius * 2 / (float)sprite.getTexture()->getSize().x, radius * 2 / (float)sprite.getTexture()->getSize().y);
     }
 
     void draw(sf::RenderWindow& window) const {
@@ -128,33 +128,45 @@ private:
 
 public:
     ScoreManager(const std::string& file) : currentScore(0), filename(file) {
-        highScore = getHighScore();
+        highScore = findHighScore(); // 在构造函数中从文件获取高分
     }
 
-    void incrementScore() { currentScore++; }
     int getCurrentScore() const { return currentScore; }
-    int getHighScore() const { return highScore; }
+
+    void updateScore(int newscore) {
+        currentScore = newscore;
+        updateHighScore(); // 更新高分
+    }
 
     void saveScore() {
         std::ofstream file(filename, std::ios::app);
         if (file.is_open()) {
-            file << currentScore << "\n";
+            file << currentScore << "\n"; // 将当前分数写入文件
             file.close();
         }
     }
 
-    int getHighScore() {
+    int findHighScore() {
         std::ifstream file(filename);
         int highestScore = 0, score;
         if (file.is_open()) {
             while (file >> score) {
-                highestScore = std::max(highestScore, score);
+                highestScore = std::max(highestScore, score); // 找到最高分
             }
             file.close();
         }
         return highestScore;
     }
+
+    void updateHighScore() {
+        if (currentScore > highScore) {
+            highScore = currentScore; // 如果当前分数大于高分，则更新高分
+        }
+    }
+
+    int getHighScore() const { return highScore; } // 获取高分值
 };
+
 
 class Game {
 private:
@@ -215,6 +227,7 @@ public:
             if (isCharging) updateCharge();
             updateGameObjects();
             checkCollisions();
+            updateMessage();
             render();
         }
         scoreManager.saveScore();
@@ -225,6 +238,7 @@ private:
         text.setFont(font);
         text.setCharacterSize(size);
         text.setPosition(position);
+        text.setFillColor(sf::Color::Red);
     }
 
     void initializeEnemies() {
@@ -337,6 +351,36 @@ private:
     void updateGameObjects() {
         for (auto& enemy : enemies) enemy.updatePosition(0.1f);
         for (auto& player : players) player.updatePosition(0.1f);
+
+        updateEnemyCount();
+    }
+
+    void updateEnemyCount() {
+        int count = 0;
+
+        for (const auto& enemy : enemies) {
+            auto bounds = enemy.sprite.getGlobalBounds();
+
+            // 检查敌人是否在中心区域外
+            if (bounds.left < CENTER_ZONE_POSITION.x ||
+                bounds.left + bounds.width > CENTER_ZONE_POSITION.x + CENTER_ZONE_SIZE.x ||
+                bounds.top < CENTER_ZONE_POSITION.y ||
+                bounds.top + bounds.height > CENTER_ZONE_POSITION.y + CENTER_ZONE_SIZE.y) {
+                count++;
+            }
+        }
+
+        scoreManager.updateScore(count);
+
+        // 更新分数文本
+        scoreText.setString("Score: " + std::to_string(scoreManager.getCurrentScore()));
+    }
+
+    //确定文字信息
+    void updateMessage() {
+        highScoreText.setString("High Score: " + std::to_string(scoreManager.getHighScore()));
+        playerCountText.setString("Players: " + std::to_string(players.size()));
+        selectionText.setString("Select Player");
     }
 
     void checkCollisions() {
@@ -363,7 +407,6 @@ private:
             }
         }
     }
-
 
     // 修改 render() 方法以绘制精灵
     void render() {
