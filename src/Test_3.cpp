@@ -11,8 +11,8 @@
 
 constexpr int WINDOW_WIDTH = 1920;  //窗口宽度
 constexpr int WINDOW_HEIGHT = 1080; //窗口高度
-constexpr float PLAYER_RADIUS = 20.f;   //玩家半径
-constexpr float ENEMY_RADIUS = 15.f;    //敌方半径
+constexpr float PLAYER_RADIUS = 25.f;   //玩家半径
+constexpr float ENEMY_RADIUS = 25.f;    //敌方半径
 //constexpr float FORCE_MULTIPLIER = 0.05f;
 constexpr float REBOUND_COEFFICIENT = 0.8f; //反弹系数
 //constexpr float SPECIAL_EXPLOSION_MULTIPLIER = 0.3f;

@@ -3,7 +3,7 @@ project(Games_1)
 
 set(CMAKE_CXX_STANDARD 23)
 
-add_executable(Games_1 src/Test_3.cpp)
+add_executable(Games_1 src/Test_4.cpp)
 
 # 添加下面SFML配置
 set(SFML_STATIC_LIBRARIES TRUE)
