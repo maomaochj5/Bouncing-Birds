@@ -190,12 +190,24 @@ private:
     int selectedPlayerIndex;
     bool gameEnded;
 
+
+    sf::Texture backgroundTexture;
+    sf::Sprite backgroundSprite;
+
+
 public:
     Game() : window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "SFML Game"),
              scoreManager("highscores.txt"),
              normalCount(2), specialCount(2), isCharging(false), chargeTime(0.f),
              selectedPlayerIndex(-1), gameEnded(false) {  // 默认没有选择
         window.setFramerateLimit(60);
+
+        // 加载背景图片
+        if (!backgroundTexture.loadFromFile("background.png")) {
+            std::cerr << "Failed to load background image!" << std::endl;
+        } else {
+            backgroundSprite.setTexture(backgroundTexture);
+        }
 
         font.loadFromFile("arial.ttf");
         initializeText(scoreText, 24, sf::Vector2f(WINDOW_WIDTH - 200, 20));
@@ -220,6 +232,7 @@ public:
         initializeEnemies();
         initializePlayers();
     }
+
 
     void run() {
         while (window.isOpen()) {
@@ -362,10 +375,10 @@ private:
             auto bounds = enemy.sprite.getGlobalBounds();
 
             // 检查敌人是否在中心区域外
-            if (bounds.left < CENTER_ZONE_POSITION.x ||
-                bounds.left + bounds.width > CENTER_ZONE_POSITION.x + CENTER_ZONE_SIZE.x ||
-                bounds.top < CENTER_ZONE_POSITION.y ||
-                bounds.top + bounds.height > CENTER_ZONE_POSITION.y + CENTER_ZONE_SIZE.y) {
+            if (bounds.left + bounds.width <= CENTER_ZONE_POSITION.x ||  // 左侧完全在中心区域外
+                bounds.left >= CENTER_ZONE_POSITION.x + CENTER_ZONE_SIZE.x || // 右侧完全在中心区域外
+                bounds.top + bounds.height <= CENTER_ZONE_POSITION.y ||  // 上侧完全在中心区域外
+                bounds.top >= CENTER_ZONE_POSITION.y + CENTER_ZONE_SIZE.y) { // 下侧完全在中心区域外
                 count++;
             }
         }
@@ -411,6 +424,10 @@ private:
     // 修改 render() 方法以绘制精灵
     void render() {
         window.clear();
+
+        // 绘制背景图片
+        window.draw(backgroundSprite);
+
         window.draw(centerZoneBorder);
         window.draw(scoreText);
         window.draw(highScoreText);
