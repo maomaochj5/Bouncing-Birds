@@ -1,3 +1,5 @@
+#pragma once
+
 #include <SFML/Graphics.hpp>
 #include <iostream>
 #include <memory>
@@ -222,9 +224,3 @@ private:
 
     int currentPage;  // 当前页面状态
 };
-
-int main() {
-    Application app;
-    app.run();
-    return 0;
-}

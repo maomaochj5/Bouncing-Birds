@@ -1,3 +1,5 @@
+#pragma once
+
 #include <SFML/Graphics.hpp>
 #include <SFML/Window.hpp>
 #include <SFML/System.hpp>
@@ -19,29 +21,45 @@ const sf::Vector2f CENTER_ZONE_SIZE(500, 500);      //中心区域大小
 constexpr int NUM_ENEMIES = 6;  //敌方数量
 constexpr float CHARGE_MAX_TIME = 4.f;  //蓄力时间
 
-class GameObject {
-
+class TextureManager {
 public:
-    sf::CircleShape shape;
-    sf::Vector2f velocity;  //速度
-    float mass;  // 质量属性
-    bool isStopped;
-
-    GameObject(float radius, sf::Color color, sf::Vector2f position, float m = 1.0f)
-            : shape(), velocity(0.f, 0.f), mass(m), isStopped(true) {
-        shape.setRadius(radius);
-        shape.setFillColor(color);
-        shape.setOrigin(radius, radius);
-        shape.setPosition(position);
+    sf::Texture& getTexture(const std::string& filename) {
+        auto& texture = textures[filename];
+        if (!texture.loadFromFile(filename)) {
+            std::cerr << "Error loading texture from " << filename << std::endl;
+            throw std::runtime_error("Failed to load texture!");
+        }
+        return texture;
     }
 
+private:
+    std::map<std::string, sf::Texture> textures;  // Store textures
+};
+
+// Usage in GameObject
+class GameObject {
+public:
+    sf::Sprite sprite;
+    sf::Vector2f velocity;  // Velocity
+    float mass;  // Mass property
+    bool isStopped;
+
+    GameObject(float radius, const std::string& textureFile, sf::Vector2f position, TextureManager& textureManager, float m = 1.0f)
+            : velocity(0.f, 0.f), mass(m), isStopped(true) {
+        sprite.setTexture(textureManager.getTexture(textureFile));
+        sprite.setOrigin(radius, radius);
+        sprite.setPosition(position);
+        sprite.setScale(radius * 2 / (float)sprite.getTexture()->getSize().x, radius * 2 / (float)sprite.getTexture()->getSize().y);
+    }
+
+    void draw(sf::RenderWindow& window) const {
+        window.draw(sprite);  // Draw the sprite
+    }
 
     void updatePosition(float dt) {
         if (!isStopped) {
-            shape.move(velocity * dt);
-            velocity = velocity*=FRICTION_COEFFICIENT; //摩擦减速
-
-            //小于一定值停下
+            sprite.move(velocity * dt);
+            velocity *= FRICTION_COEFFICIENT; // 摩擦减速
             if (std::abs(velocity.x) < 0.01f && std::abs(velocity.y) < 0.01f) {
                 isStopped = true;
                 velocity = {0.f, 0.f};
@@ -50,44 +68,53 @@ public:
     }
 
     void applyBoundaryCollision() {
-        //获取 shape 的当前位置，并将其存储到 pos 变量中。
-        auto pos = shape.getPosition();
+        auto bounds = sprite.getGlobalBounds();  // Get the global bounds of the sprite
 
-        //速度取反
-
-        if (pos.x - shape.getRadius() < 0 || pos.x + shape.getRadius() > WINDOW_WIDTH) {
-            velocity.x = -velocity.x * REBOUND_COEFFICIENT;
+        // Check for left and right boundary collisions
+        if (bounds.left < 280 || bounds.left + bounds.width > WINDOW_WIDTH - 300) {
+            velocity.x = -velocity.x * REBOUND_COEFFICIENT;  // Reverse horizontal velocity
+            sprite.setPosition(std::max(bounds.width / 2, std::min(sprite.getPosition().x, WINDOW_WIDTH - bounds.width / 2)), sprite.getPosition().y);  // Keep sprite within bounds
         }
-        if (pos.y - shape.getRadius() < 0 || pos.y + shape.getRadius() > WINDOW_HEIGHT) {
-            velocity.y = -velocity.y * REBOUND_COEFFICIENT;
+
+        // Check for top and bottom boundary collisions
+        if (bounds.top < 120 || bounds.top + bounds.height > WINDOW_HEIGHT) {
+            velocity.y = -velocity.y * REBOUND_COEFFICIENT;  // Reverse vertical velocity
+            sprite.setPosition(sprite.getPosition().x, std::max(bounds.height / 2, std::min(sprite.getPosition().y, WINDOW_HEIGHT - bounds.height / 2)));  // Keep sprite within bounds
         }
     }
+
 };
 
 class CollisionHandler {
 public:
     static void applyCollision(GameObject& a, GameObject& b, sf::Sound& collisionSound) {
-        auto delta = a.shape.getPosition() - b.shape.getPosition();
-        float dist = std::sqrt(delta.x * delta.x + delta.y * delta.y);
+        // Get the bounding boxes of the sprites
+        sf::FloatRect aBounds = a.sprite.getGlobalBounds();
+        sf::FloatRect bBounds = b.sprite.getGlobalBounds();
 
-        if (dist < a.shape.getRadius() + b.shape.getRadius()) {
+        // Check for collision using bounding boxes
+        if (aBounds.intersects(bBounds)) {
             collisionSound.play();
 
-            auto normal = delta / dist;  // 碰撞法线
+            auto delta = a.sprite.getPosition() - b.sprite.getPosition();  // Update for sprite
+            float dist = std::sqrt(delta.x * delta.x + delta.y * delta.y);
+
+            // Calculate the normal and relative velocity
+            auto normal = delta / dist;  // Collision normal
             auto relativeVelocity = a.velocity - b.velocity;
             float velocityAlongNormal = relativeVelocity.x * normal.x + relativeVelocity.y * normal.y;
 
-            if (velocityAlongNormal > 0) return;  // 在远离彼此
+            if (velocityAlongNormal > 0) return;  // Moving apart
 
-            // 更新速度
+            // Update velocities
             sf::Vector2f temp = a.velocity;
-            a.velocity = 0.5f * (a.velocity + b.velocity + REBOUND_COEFFICIENT * (b.velocity - a.velocity));  // a的速度增加
-            b.velocity = 0.5f * (b.velocity + temp + REBOUND_COEFFICIENT * (temp - b.velocity));  // b的速度减少
+            a.velocity = 0.5f * (a.velocity + b.velocity + REBOUND_COEFFICIENT * (b.velocity - a.velocity));
+            b.velocity = 0.5f * (b.velocity + temp + REBOUND_COEFFICIENT * (temp - b.velocity));
 
             a.isStopped = false;
             b.isStopped = false;
 
-            // 调试输出
+            // Debug output
             std::cout << "Collision detected: a velocity: " << a.velocity.x << ", " << a.velocity.y
                       << " | b velocity: " << b.velocity.x << ", " << b.velocity.y << std::endl;
         }
@@ -103,33 +130,45 @@ private:
 
 public:
     ScoreManager(const std::string& file) : currentScore(0), filename(file) {
-        highScore = getHighScore();
+        highScore = findHighScore(); // 在构造函数中从文件获取高分
     }
 
-    void incrementScore() { currentScore++; }
     int getCurrentScore() const { return currentScore; }
-    int getHighScore() const { return highScore; }
+
+    void updateScore(int newscore) {
+        currentScore = newscore;
+        updateHighScore(); // 更新高分
+    }
 
     void saveScore() {
         std::ofstream file(filename, std::ios::app);
         if (file.is_open()) {
-            file << currentScore << "\n";
+            file << currentScore << "\n"; // 将当前分数写入文件
             file.close();
         }
     }
 
-    int getHighScore() {
+    int findHighScore() {
         std::ifstream file(filename);
         int highestScore = 0, score;
         if (file.is_open()) {
             while (file >> score) {
-                highestScore = std::max(highestScore, score);
+                highestScore = std::max(highestScore, score); // 找到最高分
             }
             file.close();
         }
         return highestScore;
     }
+
+    void updateHighScore() {
+        if (currentScore > highScore) {
+            highScore = currentScore; // 如果当前分数大于高分，则更新高分
+        }
+    }
+
+    int getHighScore() const { return highScore; } // 获取高分值
 };
+
 
 class Game {
 private:
@@ -140,6 +179,7 @@ private:
     sf::RectangleShape centerZoneBorder;
     sf::SoundBuffer collisionBuffer;
     sf::Sound collisionSound;
+    TextureManager textureManager;
 
     ScoreManager scoreManager;
     std::vector<GameObject> enemies;
@@ -150,31 +190,51 @@ private:
     bool isCharging;
     float chargeTime;
     int selectedPlayerIndex;
-    bool gameEnded;
+    int hadshoot;
+
+
+    sf::Texture backgroundTexture;
+    sf::Sprite backgroundSprite;
+
+    sf::Texture backgroundTextureEnd;
+    sf::Sprite backgroundSpriteEnd;
 
 public:
     Game() : window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "SFML Game"),
              scoreManager("highscores.txt"),
              normalCount(2), specialCount(2), isCharging(false), chargeTime(0.f),
-             selectedPlayerIndex(-1), gameEnded(false) {  // 默认没有选择
+             selectedPlayerIndex(-1), hadshoot(0) {  // 默认没有选择
         window.setFramerateLimit(60);
 
+        // 加载背景图片
+        if (!backgroundTexture.loadFromFile("Images/background.png")) {
+            std::cerr << "Failed to load background image!" << std::endl;
+        } else {
+            backgroundSprite.setTexture(backgroundTexture);
+        }
+
+        if (!backgroundTextureEnd.loadFromFile("Images/backgroundend.png")) {
+            std::cerr << "Failed to load background image!" << std::endl;
+        } else {
+            backgroundSpriteEnd.setTexture(backgroundTextureEnd);
+        }
+
         font.loadFromFile("arial.ttf");
-        initializeText(scoreText, 24, sf::Vector2f(WINDOW_WIDTH - 200, 20));
-        initializeText(highScoreText, 24, sf::Vector2f(WINDOW_WIDTH - 200, 60));
+        initializeText(scoreText, 24, sf::Vector2f(WINDOW_WIDTH - 550, 140));
+        initializeText(highScoreText, 24, sf::Vector2f(WINDOW_WIDTH - 550, 180));
         initializeText(playerCountText, 24, sf::Vector2f(WINDOW_WIDTH - 200, WINDOW_HEIGHT - 80));
         initializeText(finalScoreText, 50, sf::Vector2f(WINDOW_WIDTH / 2 - 100, WINDOW_HEIGHT / 2 - 50));
         initializeText(selectionText, 24, sf::Vector2f(WINDOW_WIDTH / 2 - 100, WINDOW_HEIGHT - 150));
 
         centerZoneBorder.setSize(CENTER_ZONE_SIZE);
         centerZoneBorder.setOutlineThickness(30);
-        centerZoneBorder.setOutlineColor(sf::Color::Red);
+        centerZoneBorder.setOutlineColor(sf::Color::Green);
         centerZoneBorder.setFillColor(sf::Color::Transparent);
         centerZoneBorder.setPosition(CENTER_ZONE_POSITION);
 
         chargeBar.setSize(sf::Vector2f(30, 200));
         chargeBar.setFillColor(sf::Color::Yellow);
-        chargeBar.setPosition(WINDOW_WIDTH - 60, WINDOW_HEIGHT - 250);
+        chargeBar.setPosition(WINDOW_WIDTH - 180, WINDOW_HEIGHT - 620);
 
         collisionBuffer.loadFromFile("collision.wav");
         collisionSound.setBuffer(collisionBuffer);
@@ -183,13 +243,21 @@ public:
         initializePlayers();
     }
 
+
     void run() {
         while (window.isOpen()) {
             handleEvents();
             if (isCharging) updateCharge();
             updateGameObjects();
             checkCollisions();
-            render();
+            updateMessage();
+
+            // 检查所有玩家是否已经发射
+            if (hadshoot > 4 ) {
+                renderEndScene();
+            } else {
+                render(); // 普通渲染
+            }
         }
         scoreManager.saveScore();
     }
@@ -199,6 +267,7 @@ private:
         text.setFont(font);
         text.setCharacterSize(size);
         text.setPosition(position);
+        text.setFillColor(sf::Color::Red);
     }
 
     void initializeEnemies() {
@@ -207,44 +276,41 @@ private:
             bool validPosition = false;
 
             while (!validPosition) {
-                // 随机生成位置
                 float x = CENTER_ZONE_POSITION.x + std::rand() % static_cast<int>(CENTER_ZONE_SIZE.x);
                 float y = CENTER_ZONE_POSITION.y + std::rand() % static_cast<int>(CENTER_ZONE_SIZE.y);
                 position = sf::Vector2f(x, y);
-
                 validPosition = true;
 
-                // 检查是否与红线相接触
                 if (position.x - ENEMY_RADIUS < CENTER_ZONE_POSITION.x || position.x + ENEMY_RADIUS > CENTER_ZONE_POSITION.x + CENTER_ZONE_SIZE.x ||
                     position.y - ENEMY_RADIUS < CENTER_ZONE_POSITION.y || position.y + ENEMY_RADIUS > CENTER_ZONE_POSITION.y + CENTER_ZONE_SIZE.y) {
                     validPosition = false;
-                    continue;  // 位置无效，重新生成
+                    continue;
                 }
 
-                // 检查是否与其他敌方球重叠
                 for (const auto& enemy : enemies) {
-                    float dist = std::sqrt(std::pow(position.x - enemy.shape.getPosition().x, 2) +
-                                           std::pow(position.y - enemy.shape.getPosition().y, 2));
-                    if (dist < ENEMY_RADIUS + ENEMY_RADIUS) { // 两个敌方球的半径之和
+                    float dist = std::sqrt(std::pow(position.x - enemy.sprite.getPosition().x, 2) +
+                                           std::pow(position.y - enemy.sprite.getPosition().y, 2));
+                    if (dist < ENEMY_RADIUS + ENEMY_RADIUS) {
                         validPosition = false;
-                        break;  // 位置无效，重新生成
+                        break;
                     }
                 }
             }
-
-            enemies.emplace_back(ENEMY_RADIUS, sf::Color::Red, position);
+            enemies.emplace_back(GameObject(PLAYER_RADIUS, "Images/bird_2.png", position, textureManager));
         }
     }
 
-
     void initializePlayers() {
+        selectedPlayerIndex = 0;
         players = {
-                GameObject(PLAYER_RADIUS, sf::Color::Green, sf::Vector2f(WINDOW_WIDTH / 2, WINDOW_HEIGHT - 50)),
-                GameObject(PLAYER_RADIUS, sf::Color::Green, sf::Vector2f(WINDOW_WIDTH / 2, WINDOW_HEIGHT - 50)),
-                GameObject(PLAYER_RADIUS, sf::Color::Blue, sf::Vector2f(WINDOW_WIDTH / 2, WINDOW_HEIGHT - 50)),
-                GameObject(PLAYER_RADIUS, sf::Color::Blue, sf::Vector2f(WINDOW_WIDTH / 2, WINDOW_HEIGHT - 50))
+                GameObject(PLAYER_RADIUS, "Images/bird_1.png", sf::Vector2f(WINDOW_WIDTH / 2-20, WINDOW_HEIGHT - 170), textureManager),
+                GameObject(PLAYER_RADIUS, "Images/bird_1.png", sf::Vector2f(WINDOW_WIDTH / 2-20, WINDOW_HEIGHT - 170), textureManager),
+                GameObject(PLAYER_RADIUS, "Images/bird_1.png", sf::Vector2f(WINDOW_WIDTH / 2-20, WINDOW_HEIGHT - 170), textureManager),
+                GameObject(PLAYER_RADIUS, "Images/bird_1.png", sf::Vector2f(WINDOW_WIDTH / 2-20, WINDOW_HEIGHT - 170), textureManager)
         };
     }
+
+
 
     void handleEvents() {
         sf::Event event;
@@ -273,12 +339,8 @@ private:
                 sf::Vector2f mousePos = sf::Vector2f(sf::Mouse::getPosition(window));
                 launchPlayer(mousePos);  // 使用鼠标位置发射棋子
                 isCharging = false;  // 停止蓄力
-            }
 
-            // 空格键事件与管理发射没有直接的操作
-            if (event.type == sf::Event::KeyReleased && event.key.code == sf::Keyboard::Space && isCharging) {
-                // 让发射操作与鼠标操作分离
-                // 把相关代码移动到鼠标释放事件中
+                hadshoot += 1 ;
             }
         }
     }
@@ -291,6 +353,8 @@ private:
             }
             chargeBar.setSize(sf::Vector2f(30, chargeTime / CHARGE_MAX_TIME * 200)); // 更新时间条
         }
+
+        selectedPlayerIndex = hadshoot;
     }
 
 
@@ -298,7 +362,7 @@ private:
         if (selectedPlayerIndex >= 0) {
             auto& player = players[selectedPlayerIndex];
             // 计算鼠标相对于棋子位置的方向
-            sf::Vector2f direction = mousePos - player.shape.getPosition();
+            sf::Vector2f direction = mousePos - player.sprite.getPosition();
             float length = std::sqrt(direction.x * direction.x + direction.y * direction.y);  // 获取方向长度
 
             // 归一化方向向量, 避免除以零
@@ -315,6 +379,36 @@ private:
     void updateGameObjects() {
         for (auto& enemy : enemies) enemy.updatePosition(0.1f);
         for (auto& player : players) player.updatePosition(0.1f);
+
+        updateEnemyCount();
+    }
+
+    void updateEnemyCount() {
+        int count = 0;
+
+        for (const auto& enemy : enemies) {
+            auto bounds = enemy.sprite.getGlobalBounds();
+
+            // 检查敌人是否在中心区域外
+            if (bounds.left + bounds.width <= CENTER_ZONE_POSITION.x ||  // 左侧完全在中心区域外
+                bounds.left >= CENTER_ZONE_POSITION.x + CENTER_ZONE_SIZE.x || // 右侧完全在中心区域外
+                bounds.top + bounds.height <= CENTER_ZONE_POSITION.y ||  // 上侧完全在中心区域外
+                bounds.top >= CENTER_ZONE_POSITION.y + CENTER_ZONE_SIZE.y) { // 下侧完全在中心区域外
+                count++;
+            }
+        }
+
+        scoreManager.updateScore(count);
+
+        // 更新分数文本
+        scoreText.setString("Score: " + std::to_string(scoreManager.getCurrentScore()));
+    }
+
+    //确定文字信息
+    void updateMessage() {
+        highScoreText.setString("High Score: " + std::to_string(scoreManager.getHighScore()));
+        playerCountText.setString("Players: " + std::to_string(players.size() - hadshoot));
+        //selectionText.setString("Select Player");
     }
 
     void checkCollisions() {
@@ -342,23 +436,56 @@ private:
         }
     }
 
-
+    // 修改 render() 方法以绘制精灵
     void render() {
         window.clear();
+
+        // 绘制背景图片
+        window.draw(backgroundSprite);
+
         window.draw(centerZoneBorder);
         window.draw(scoreText);
         window.draw(highScoreText);
         window.draw(playerCountText);
         window.draw(chargeBar);
-        for (const auto& enemy : enemies) window.draw(enemy.shape);
-        for (const auto& player : players) window.draw(player.shape);
+
+        for (const auto& enemy : enemies) enemy.draw(window);  // 调用 draw 方法
+        for (const auto& player : players) player.draw(window);  // 调用 draw 方法
+
         window.draw(selectionText);  // 渲染选择文本
         window.display();
+
+
+    }
+
+    void renderEndScene(){
+        window.clear(); // 清屏
+
+        // 重新渲染背景
+        window.draw(backgroundSpriteEnd); // 假设你有一个后台纹理
+
+        // 你可以在这里添加其他 UI 元素，比如“游戏结束”信息
+        sf::Text gameOverHighScore;
+        sf::Text gameOverCurrentScore;
+
+        gameOverHighScore.setFont(font); // 添加你的字体
+        gameOverHighScore.setString("High Score: " + std::to_string(scoreManager.getHighScore()));
+        gameOverHighScore.setCharacterSize(70);
+        gameOverHighScore.setFillColor(sf::Color::White);
+        gameOverHighScore.setPosition(WINDOW_WIDTH / 2 - gameOverHighScore.getGlobalBounds().width / 2,
+                                      WINDOW_HEIGHT / 2 - gameOverHighScore.getGlobalBounds().height / 2 + 40);
+
+
+        gameOverCurrentScore.setFont(font); // 添加你的字体
+        gameOverCurrentScore.setString("Score: " + std::to_string(scoreManager.getCurrentScore()));
+        gameOverCurrentScore.setCharacterSize(70);
+        gameOverCurrentScore.setFillColor(sf::Color::White);
+        gameOverCurrentScore.setPosition(WINDOW_WIDTH / 2 - gameOverCurrentScore.getGlobalBounds().width / 2,
+                                         WINDOW_HEIGHT / 2 - gameOverCurrentScore.getGlobalBounds().height / 2 - 100  );
+
+        window.draw(gameOverHighScore); // 绘制游戏结束信息
+        window.draw(gameOverCurrentScore);
+
+        window.display(); // 显示新的渲染内容
     }
 };
-
-int main() {
-    Game game;
-    game.run();
-    return 0;
-}
