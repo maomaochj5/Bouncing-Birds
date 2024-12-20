@@ -3,7 +3,9 @@ project(Games_1)
 
 set(CMAKE_CXX_STANDARD 23)
 
-add_executable(Games_1 Games_ver_1/Test_2.cpp)
+add_executable(Games_1 WIN32 Games_ver_1/Test_2.cpp
+        Games_ver_1/Game.h
+        Games_ver_1/Menu.h)
 
 # 添加下面SFML配置
 set(SFML_STATIC_LIBRARIES TRUE)
@@ -14,3 +16,5 @@ target_link_libraries(Games_1 sfml-system sfml-window sfml-graphics sfml-audio s
 # 复制资源到生成的exe文件夹
 
 file(COPY Images DESTINATION ${CMAKE_BINARY_DIR})
+
+set(CMAKE_EXE_LINKER_FLAGS -static)
