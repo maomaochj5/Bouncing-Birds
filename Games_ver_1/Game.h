@@ -256,7 +256,7 @@ private:
 
 
 public:
-    Game() : window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "SFML Game"),
+    Game() : window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), L"哐哐当当雀雀球"),
              scoreManager("highscores.txt"),
              normalCount(2), specialCount(2), isCharging(false), chargeTime(0.f),
              selectedPlayerIndex(0), hadshoot(0), viewArchiveMode(false) ,currentGameState(Playing){  // 默认没有选择
@@ -378,7 +378,7 @@ private:
                 for (const auto &enemy: enemies) {
                     float dist = std::sqrt(std::pow(position.x - enemy.sprite.getPosition().x, 2) +
                                            std::pow(position.y - enemy.sprite.getPosition().y, 2));
-                    if (dist < ENEMY_RADIUS + ENEMY_RADIUS) {
+                    if (dist < ENEMY_RADIUS + ENEMY_RADIUS + 50) {
                         validPosition = false;
                         break;
                     }
