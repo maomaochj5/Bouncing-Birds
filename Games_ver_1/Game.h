@@ -301,6 +301,7 @@ public:
             if (isCharging) updateCharge();
             updateGameObjects();
             checkCollisions();
+            updateEnemyCount();
             updateMessage();
 
             // 检查所有球是否停止

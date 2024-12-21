@@ -8,10 +8,6 @@
 // Easing 类
 class Easing {
 public:
-    static float linearEase(float t, float b, float c, float d) {
-        return c * t / d + b;
-    }
-
     static float quadraticEaseInOut(float t, float b, float c, float d) {
         t /= d / 2;
         if (t < 1) return c / 2 * t * t + b;
