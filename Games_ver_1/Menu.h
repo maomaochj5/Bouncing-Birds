@@ -94,7 +94,7 @@ private:
 class Application {
 public:
     Application()
-            : window(sf::VideoMode(1920, 1080), "SFML Background"),
+            : window(sf::VideoMode(1920, 1080), L"哐哐当当雀雀球"),
               background("Images/background_image.png", window),
               isTransitioning(false), transitionTime(2.0f), currentTime(0.0f), transitionColor(sf::Color::White),
               currentPage(1) {

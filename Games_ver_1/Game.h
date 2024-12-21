@@ -9,6 +9,7 @@
 #include <fstream>
 #include <string>
 #include <iostream>
+#include <cstring>
 
 constexpr int WINDOW_WIDTH = 1920;  // 窗口宽度
 constexpr int WINDOW_HEIGHT = 1080; // 窗口高度
@@ -83,29 +84,46 @@ public:
         }
     }
     void save(std::ofstream& file) const {
-        file.write(reinterpret_cast<const char*>(&sprite.getPosition().x), sizeof(float));
-        file.write(reinterpret_cast<const char*>(&sprite.getPosition().y), sizeof(float));
-        file.write(reinterpret_cast<const char*>(&velocity.x), sizeof(float));
-        file.write(reinterpret_cast<const char*>(&velocity.y), sizeof(float));
-        file.write(reinterpret_cast<const char*>(&mass), sizeof(float));
-        file.write(reinterpret_cast<const char*>(&isStopped), sizeof(bool));
+        std::vector<char> buffer(sizeof(float) * 4 + sizeof(bool) + sizeof(float));
+        char* ptr = buffer.data();
+
+        sf::Vector2f pos = sprite.getPosition(); // Create a non-const copy
+
+        std::memcpy(ptr, &pos.x, sizeof(float));
+        ptr += sizeof(float);
+        std::memcpy(ptr, &pos.y, sizeof(float));
+        ptr += sizeof(float);
+        std::memcpy(ptr, &velocity.x, sizeof(float));
+        ptr += sizeof(float);
+        std::memcpy(ptr, &velocity.y, sizeof(float));
+        ptr += sizeof(float);
+        std::memcpy(ptr, &mass, sizeof(float));
+        ptr += sizeof(float);
+        std::memcpy(ptr, &isStopped, sizeof(bool));
+
+        file.write(buffer.data(), buffer.size());
     }
 
     void load(std::ifstream& file) {
-        float x, y, vx, vy, m;
-        bool stopped;
-        file.read(reinterpret_cast<char*>(&x), sizeof(float));
-        file.read(reinterpret_cast<char*>(&y), sizeof(float));
-        file.read(reinterpret_cast<char*>(&vx), sizeof(float));
-        file.read(reinterpret_cast<char*>(&vy), sizeof(float));
-        file.read(reinterpret_cast<char*>(&m), sizeof(float));
-        file.read(reinterpret_cast<char*>(&stopped), sizeof(bool));
+        std::vector<char> buffer(sizeof(float) * 4 + sizeof(bool) + sizeof(float));
+        file.read(buffer.data(), buffer.size());
 
-        sprite.setPosition(x, y);
-        velocity.x = vx;
-        velocity.y = vy;
-        mass = m;
-        isStopped = stopped;
+        char* ptr = buffer.data();
+
+        sf::Vector2f pos; // Create a non-const Vector2f to receive the data
+        std::memcpy(&pos.x, ptr, sizeof(float));
+        ptr += sizeof(float);
+        std::memcpy(&pos.y, ptr, sizeof(float));
+        ptr += sizeof(float);
+        sprite.setPosition(pos); // Now set the sprite's position using the non-const copy
+
+        std::memcpy(&velocity.x, ptr, sizeof(float));
+        ptr += sizeof(float);
+        std::memcpy(&velocity.y, ptr, sizeof(float));
+        ptr += sizeof(float);
+        std::memcpy(&mass, ptr, sizeof(float));
+        ptr += sizeof(float);
+        std::memcpy(&isStopped, ptr, sizeof(bool));
     }
 };
 
@@ -196,6 +214,12 @@ public:
 };
 
 
+enum GameState {
+    Playing,
+    EndScreen,
+    ArchiveView
+};
+
 class Game {
 private:
     sf::RenderWindow window;
@@ -228,12 +252,14 @@ private:
     bool viewArchiveMode;
     sf::Music backgroundMusic;
     bool allPlayersStopped;
+    GameState currentGameState;
+
 
 public:
     Game() : window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), "SFML Game"),
              scoreManager("highscores.txt"),
              normalCount(2), specialCount(2), isCharging(false), chargeTime(0.f),
-             selectedPlayerIndex(-1), hadshoot(0), viewArchiveMode(false) {  // 默认没有选择
+             selectedPlayerIndex(0), hadshoot(0), viewArchiveMode(false) ,currentGameState(Playing){  // 默认没有选择
         window.setFramerateLimit(60);
 
         // 加载背景图片
@@ -292,27 +318,30 @@ public:
         while (window.isOpen()) {
             handleEvents();
 
-            if (viewArchiveMode) {
-                loadGame("savegame.bin");
-                render();
-                continue;
-            }
+            switch (currentGameState) {
+                case Playing:
+                    if (isCharging) updateCharge();
+                    updateGameObjects();
+                    checkCollisions();
+                    updateEnemyCount();
+                    updateMessage();
 
-            if (isCharging) updateCharge();
-            updateGameObjects();
-            checkCollisions();
-            updateEnemyCount();
-            updateMessage();
+                    allPlayersStopped = std::all_of(players.begin(), players.end(), [](const GameObject& player) {
+                        return player.isStopped;
+                    });
 
-            // 检查所有球是否停止
-            allPlayersStopped = std::all_of(players.begin(), players.end(), [](const GameObject& player) {
-                return player.isStopped;
-            });
-
-            if (hadshoot >= players.size() && allPlayersStopped) {
-                renderEndScene(); // 所有球发射完毕且停止后才进入结束画面
-            } else {
-                render();
+                    if (hadshoot >= players.size() && allPlayersStopped) {
+                        saveGame("savegame.bin");
+                        currentGameState = EndScreen;
+                    }
+                    render();
+                    break;
+                case EndScreen:
+                    renderEndScene();
+                    break;
+                case ArchiveView:
+                    render();
+                    break;
             }
         }
         scoreManager.saveScore();
@@ -380,39 +409,31 @@ private:
             if (event.type == sf::Event::Closed)
                 window.close();
 
-            // 处理存档模式下的事件
-            if (viewArchiveMode) {
-                if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Escape) {
-                    viewArchiveMode = false; // 按 Esc 退出存档模式
+            if (currentGameState == Playing) { // 只在 Playing 状态下处理发射相关事件
+                if (event.type == sf::Event::KeyPressed) {
+                    if (event.key.code == sf::Keyboard::Num1) selectedPlayerIndex = 0;
+                    if (event.key.code == sf::Keyboard::Num2) selectedPlayerIndex = 1;
+                    if (event.key.code == sf::Keyboard::Num3) selectedPlayerIndex = 2;
+                    if (event.key.code == sf::Keyboard::Num4) selectedPlayerIndex = 3;
                 }
-                continue; // 存档模式下不再处理其他事件
-            }
 
-            // 处理正常游戏模式下的事件
-            if (event.type == sf::Event::KeyPressed) {
-                if (event.key.code == sf::Keyboard::V && hadshoot >= players.size()) {
-                    viewArchiveMode = true; // 游戏结束后按 V 进入存档模式
-                }
-                if (event.key.code == sf::Keyboard::Num1) selectedPlayerIndex = 0;
-                if (event.key.code == sf::Keyboard::Num2) selectedPlayerIndex = 1;
-                if (event.key.code == sf::Keyboard::Num3) selectedPlayerIndex = 2;
-                if (event.key.code == sf::Keyboard::Num4) selectedPlayerIndex = 3;
-            }
-
-            if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left && hadshoot < players.size()) {
-                if (selectedPlayerIndex != -1) {
+                if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left && hadshoot < players.size()) {
                     isCharging = true;
                     chargeTime = 0.f;
                 }
-            }
 
-            if (event.type == sf::Event::MouseButtonReleased && event.mouseButton.button == sf::Mouse::Left && isCharging) {
-                if (hadshoot < players.size()) {
-                    selectedPlayerIndex = hadshoot;
+                if (event.type == sf::Event::MouseButtonReleased && event.mouseButton.button == sf::Mouse::Left && isCharging) {
                     sf::Vector2f mousePos = sf::Vector2f(sf::Mouse::getPosition(window));
                     launchPlayer(mousePos);
                     isCharging = false;
                     hadshoot++;
+                }
+            } else if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::V) { // V 键事件处理
+                if (currentGameState == EndScreen) {
+                    loadGame("savegame.bin");
+                    currentGameState = ArchiveView;
+                } else if (currentGameState == ArchiveView) {
+                    currentGameState = EndScreen;
                 }
             }
         }
@@ -429,24 +450,20 @@ private:
     }
 
 
-    void launchPlayer(const sf::Vector2f &mousePos) {
-        if (selectedPlayerIndex >= 0 && selectedPlayerIndex < players.size() &&
-            hadshoot < players.size()){ //添加越界检查
-                auto &player = players[selectedPlayerIndex];
-                // 计算鼠标相对于棋子位置的方向
-                sf::Vector2f direction = mousePos - player.sprite.getPosition();
-                float length = std::sqrt(direction.x * direction.x + direction.y * direction.y);  // 获取方向长度
+    void launchPlayer(const sf::Vector2f& mousePos) {
+        if (selectedPlayerIndex >= 0 && selectedPlayerIndex < players.size() && hadshoot < players.size()) {
+            auto& player = players[selectedPlayerIndex];
+            sf::Vector2f direction = mousePos - player.sprite.getPosition();
+            float length = std::sqrt(direction.x * direction.x + direction.y * direction.y);
 
-                // 归一化方向向量, 避免除以零
-                if (length > 0) {
-                    direction /= length;  // 归一化
-                }
-
-                // 根据蓄力时间计算发射速度
-                player.velocity = direction * (chargeTime / CHARGE_MAX_TIME * 250.f);
-                player.isStopped = false;  // 使棋子开始移动
+            if (length > 0) {
+                direction /= length;
             }
+
+            player.velocity = direction * (chargeTime / CHARGE_MAX_TIME * 250.f);
+            player.isStopped = false;
         }
+    }
 
     void updateGameObjects() {
         for (auto& enemy : enemies) enemy.updatePosition(0.1f);
@@ -537,29 +554,10 @@ private:
         window.clear();
         window.draw(backgroundSpriteEnd);
 
-        sf::Event event;
-        while (window.pollEvent(event)) {
-            if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::V) {
-                loadGame("savegame.bin");
-                viewArchiveMode = true;
-                //这里需要添加一个return，不然会继续执行下面的渲染代码，导致存档模式的画面和结束画面重叠
-                return;
-            }
-        }
-
-        window.clear();
-        window.draw(backgroundSpriteEnd);
-
         sf::Text gameOverHighScore;
         sf::Text gameOverCurrentScore;
         sf::Text archiveView;
         sf::Text remainingShots;
-
-        remainingShots.setFont(font);
-        remainingShots.setString(L"剩余次数： " + std::to_wstring(std::max(0, (int)players.size() - hadshoot)));
-        remainingShots.setCharacterSize(40);
-        remainingShots.setFillColor(sf::Color::White);
-        remainingShots.setPosition(WINDOW_WIDTH / 2 - remainingShots.getGlobalBounds().width / 2, WINDOW_HEIGHT - 150);
 
         gameOverHighScore.setFont(font);
         gameOverHighScore.setString(L"历史记录： " + std::to_wstring(scoreManager.getHighScore()));
@@ -574,7 +572,7 @@ private:
         gameOverCurrentScore.setPosition(WINDOW_WIDTH / 2 - gameOverCurrentScore.getGlobalBounds().width / 2, WINDOW_HEIGHT / 2 - gameOverCurrentScore.getGlobalBounds().height / 2 - 100);
 
         archiveView.setFont(font);
-        archiveView.setString(L"按 V 键查看存档");
+        archiveView.setString(L"按 V 键查看存档，再次按 V 返回");
         archiveView.setCharacterSize(40);
         archiveView.setFillColor(sf::Color::White);
         archiveView.setPosition(WINDOW_WIDTH / 2 - archiveView.getGlobalBounds().width / 2, WINDOW_HEIGHT - 200);
@@ -584,56 +582,65 @@ private:
         window.draw(archiveView);
         window.draw(remainingShots);
 
-        window.display();
+        window.display(); // 只显示一次，不再循环
     }
 
-        void saveGame(const std::string &filename) { // Now correctly inside the class
-            std::ofstream file(filename, std::ios::binary);
-            if (file.is_open()) {
-                file.write(reinterpret_cast<const char *>(&hadshoot), sizeof(int));
-                file.write(reinterpret_cast<const char *>(&scoreManager.getCurrentScoreRef()), sizeof(int));
+    void saveGame(const std::string& filename) {
+        std::ofstream file(filename, std::ios::binary);
+        if (file.is_open()) {
+            int currentScore = scoreManager.getCurrentScore(); // 使用局部变量
+            file.write(reinterpret_cast<const char*>(&currentScore), sizeof(int));
+            file.write(reinterpret_cast<const char*>(&hadshoot), sizeof(int));
 
-                int enemyCount = enemies.size();
-                file.write(reinterpret_cast<const char *>(&enemyCount), sizeof(int));
-                for (const auto &enemy: enemies) {
-                    enemy.save(file);
-                }
-
-                int playerCount = players.size();
-                file.write(reinterpret_cast<const char *>(&playerCount), sizeof(int));
-                for (const auto &player: players) {
-                    player.save(file);
-                }
-                file.close();
-            } else {
-                std::cerr << "Error saving game!" << std::endl;
+            int enemyCount = enemies.size();
+            file.write(reinterpret_cast<const char*>(&enemyCount), sizeof(int));
+            for (const auto& enemy : enemies) {
+                enemy.save(file);
             }
+
+            int playerCount = players.size();
+            file.write(reinterpret_cast<const char*>(&playerCount), sizeof(int));
+            for (const auto& player : players) {
+                player.save(file);
+            }
+
+            file.close();
+            std::cout << "Game saved successfully!" << std::endl;
+        } else {
+            std::cerr << "Error saving game!" << std::endl;
         }
-
-        void loadGame(const std::string &filename) { // Now correctly inside the class
-            std::ifstream file(filename, std::ios::binary);
-            if (file.is_open()) {
-                file.read(reinterpret_cast<char *>(&hadshoot), sizeof(int));
-                file.read(reinterpret_cast<char *>(&scoreManager.getCurrentScoreRef()), sizeof(int));
-
-                int enemyCount;
-                file.read(reinterpret_cast<char *>(&enemyCount), sizeof(int));
-                enemies.clear();
-                for (int i = 0; i < enemyCount; ++i) {
-                    enemies.emplace_back(ENEMY_RADIUS, "Images/bird_2.png", sf::Vector2f(0, 0), textureManager);
-                    enemies.back().load(file);
-                }
-
-                int playerCount;
-                file.read(reinterpret_cast<char *>(&playerCount), sizeof(int));
-                players.clear();
-                for (int i = 0; i < playerCount; ++i) {
-                    players.emplace_back(PLAYER_RADIUS, "Images/bird_1.png", sf::Vector2f(0, 0), textureManager);
-                    players.back().load(file);
-                }
-                file.close();
-            } else {
-                std::cerr << "Error loading game!" << std::endl;
-            }
     }
+
+    void loadGame(const std::string& filename) {
+        std::ifstream file(filename, std::ios::binary);
+        if (file.is_open()) {
+            int loadedScore;
+            file.read(reinterpret_cast<char*>(&loadedScore), sizeof(int));
+            scoreManager.updateScore(loadedScore);
+            file.read(reinterpret_cast<char*>(&hadshoot), sizeof(int));
+
+            int enemyCount;
+            file.read(reinterpret_cast<char*>(&enemyCount), sizeof(int));
+            enemies.clear();
+            for (int i = 0; i < enemyCount; ++i) {
+                enemies.emplace_back(ENEMY_RADIUS, "Images/bird_2.png", sf::Vector2f(0, 0), textureManager);
+                enemies.back().load(file);
+            }
+
+            int playerCount;
+            file.read(reinterpret_cast<char*>(&playerCount), sizeof(int));
+            players.clear();
+            for (int i = 0; i < playerCount; ++i) {
+                players.emplace_back(PLAYER_RADIUS, "Images/bird_1.png", sf::Vector2f(0, 0), textureManager);
+                players.back().load(file);
+            }
+
+            file.close();
+            std::cout << "Game loaded successfully!" << std::endl;
+            viewArchiveMode = false;
+        } else {
+            std::cerr << "Error loading game!" << std::endl;
+        }
+    }
+
 };
