@@ -1,11 +1,11 @@
 #pragma once
 
 #include <SFML/Graphics.hpp>
-#include <iostream>
 #include <memory>
-#include "Game.h"
+#include <iostream>
+#include "Game.h" // 假设你的游戏类名为 Game
 
-
+// Easing 类
 class Easing {
 public:
     static float linearEase(float t, float b, float c, float d) {
@@ -20,6 +20,7 @@ public:
     }
 };
 
+// Button 类
 class Button {
 public:
     Button(const sf::Texture& texture, const sf::Vector2f& position, const sf::Vector2f& scale)
@@ -33,10 +34,10 @@ public:
         m_sprite.setPosition(m_position);
     }
 
-    void draw(sf::RenderWindow& window, float alpha) const {
+    void draw(sf::RenderTarget& target, float alpha) const {
         sf::Sprite tempSprite = m_sprite;
-        tempSprite.setColor(sf::Color(255, 255, 255, static_cast<uint8_t>(alpha)));  // 设置透明度
-        window.draw(tempSprite);
+        tempSprite.setColor(sf::Color(255, 255, 255, static_cast<uint8_t>(alpha)));
+        target.draw(tempSprite); // 使用 target.draw()
     }
 
     bool isClicked(const sf::Vector2i& mousePos) const {
@@ -50,7 +51,7 @@ private:
     sf::Vector2f m_scale;
 };
 
-
+// Background 类
 class Background {
 public:
     Background(const std::string& filePath, const sf::RenderWindow& window) {
@@ -70,50 +71,49 @@ public:
         float textureAspectRatio = static_cast<float>(m_texture.getSize().x) / m_texture.getSize().y;
 
         if (windowAspectRatio > textureAspectRatio) {
-            // 窗口更宽，按宽度缩放
             float scaleX = window.getSize().x / static_cast<float>(m_texture.getSize().x);
             m_sprite.setScale(scaleX, scaleX);
         } else {
-            // 窗口更高，按高度缩放
             float scaleY = window.getSize().y / static_cast<float>(m_texture.getSize().y);
             m_sprite.setScale(scaleY, scaleY);
         }
     }
 
-    void draw(sf::RenderWindow& window) const {
-        window.draw(m_sprite);
+    void draw(sf::RenderTarget& target) const {
+        target.draw(m_sprite); // 使用 target.draw()
     }
 
     sf::Vector2f getScale() const {
         return m_sprite.getScale();
     }
 
+
+
 private:
     sf::Texture m_texture;
     sf::Sprite m_sprite;
 };
 
+// Application 类
 class Application {
 public:
     Application()
             : window(sf::VideoMode(1920, 1080), "SFML Background"),
               background("Images/background_image.png", window),
               isTransitioning(false), transitionTime(2.0f), currentTime(0.0f), transitionColor(sf::Color::White),
-              currentPage(1) {  // 默认显示第一页
+              currentPage(1) {
 
-        if (buttonTexture.loadFromFile("Images/start_icon.png")) {
-            sf::Vector2f buttonPosition(1359, 927);
-            button = std::make_unique<Button>(buttonTexture, buttonPosition, background.getScale());
-        } else {
+        if (!buttonTexture.loadFromFile("Images/start_icon.png")) {
             std::cerr << "Failed to load start icon" << std::endl;
         }
+        sf::Vector2f buttonPosition(1359, 927);
+        button = std::make_unique<Button>(buttonTexture, buttonPosition, background.getScale());
 
-        if (buttonTexture2.loadFromFile("Images/second_botton.png")) {
-            sf::Vector2f buttonPosition2(1567, 993);
-            button2 = std::make_unique<Button>(buttonTexture2, buttonPosition2);
-        } else {
+        if (!buttonTexture2.loadFromFile("Images/second_botton.png")) {
             std::cerr << "Failed to load second button" << std::endl;
         }
+        sf::Vector2f buttonPosition2(1567, 993);
+        button2 = std::make_unique<Button>(buttonTexture2, buttonPosition2);
     }
 
     void run() {
@@ -125,32 +125,35 @@ public:
     }
 
 private:
+
+    float alpha; // 声明 alpha 变量
+    sf::RenderTexture renderTexture;
+
     void processEvents() {
         sf::Event event;
         while (window.pollEvent(event)) {
-            if (event.type == sf::Event::Closed)
+            if (event.type == sf::Event::Closed) {
                 window.close();
+            }
 
             if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left) {
                 if (button && button->isClicked(sf::Mouse::getPosition(window)) && currentPage == 1) {
-                    // 切换到第二页面的背景
                     background.loadTexture("Images/second_page.png");
-                    background.scaleSprite(window); // 确保背景按窗口大小缩放
+                    background.scaleSprite(window);
                     isTransitioning = true;
                     currentTime = 0.0f;
                     clock.restart();
-                    button.reset(); // 移除按钮
-                    currentPage = 2; // 切换到第二页
-                }
-                else if (button2 && button2->isClicked(sf::Mouse::getPosition(window)) && currentPage == 2) {
-                    // 切换到第三页面的背景
+                    button.reset();
+                    currentPage = 2;
+                } else if (button2 && button2->isClicked(sf::Mouse::getPosition(window)) && currentPage == 2) {
                     background.loadTexture("Images/background.png");
-                    background.scaleSprite(window); // 确保背景按窗口大小缩放
+                    background.scaleSprite(window);
                     isTransitioning = true;
                     currentTime = 0.0f;
                     clock.restart();
-                    button.reset(); // 移除按钮
-                    currentPage = 3; // 切换到第三页
+                    button.reset();
+                    currentPage = 3;
+                    switchToGame(); // 正确的调用位置
                 }
             }
         }
@@ -166,37 +169,42 @@ private:
         }
     }
 
+    void drawButton(Button* button, sf::RenderWindow& window, float alpha) {
+        if (button) {
+            button->draw(window, alpha);
+        }
+    }
 
     void render() {
-        window.clear();
+        // 确保 renderTexture 已创建且大小正确
+        if (renderTexture.create(window.getSize().x, window.getSize().y)) {
+            renderTexture.clear(sf::Color::Transparent); // 清除纹理，非常重要！
 
-        // 计算当前透明度
-        float alpha = 255.0f * (1.0f - Easing::quadraticEaseInOut(currentTime, 0.0f, 1.0f, transitionTime));
+            // 绘制背景到 renderTexture
+            background.draw(renderTexture);
 
-        // 绘制背景
-        background.draw(window);
-
-        // 如果正在过渡，使用渐变颜色
-        if (isTransitioning) {
-            // 绘制背景覆盖层的渐变效果
-            sf::RectangleShape overlay(sf::Vector2f(window.getSize()));
-            overlay.setFillColor(sf::Color(255, 255, 255, static_cast<uint8_t>(alpha)));
-            window.draw(overlay);
-
-            // 在第二页时，按钮也应用渐变效果
-            if (currentPage == 2 && button2) {
-                button2->draw(window, alpha);  // 按钮使用渐变透明度
+            // 根据 currentPage 绘制按钮到 renderTexture，并应用透明度
+            if (currentPage == 1 && button) {
+                button->draw(renderTexture, 255.0f); // 第一页按钮不透明
+            } else if (currentPage == 2 && button2) {
+                button2->draw(renderTexture, isTransitioning ? alpha : 255.0f); // 根据过渡状态应用透明度
             }
-        }
 
-        // 在其他页面显示按钮（第一页，直接显示按钮）
-        if (currentPage == 1 && button) {
-            button->draw(window, 255.0f);  // 第一次页面，按钮不透明
-        }
+            renderTexture.display();
 
-        if (currentPage == 3) {
-            switchToGame();  // 跳转到游戏
-            return;
+            // 将 renderTexture 绘制到窗口
+            sf::Sprite renderSprite(renderTexture.getTexture());
+            window.draw(renderSprite);
+
+            // 如果正在过渡，绘制覆盖层（现在 alpha 计算放在这里）
+            if (isTransitioning) {
+                alpha = Easing::quadraticEaseInOut(currentTime, 255.0f, -255.0f, transitionTime);
+                sf::RectangleShape overlay(sf::Vector2f(window.getSize()));
+                overlay.setFillColor(sf::Color(255, 255, 255, static_cast<uint8_t>(alpha)));
+                window.draw(overlay);
+            }
+        } else {
+            std::cerr << "Failed to create render texture!" << std::endl;
         }
 
         window.display();
@@ -204,15 +212,14 @@ private:
 
     void switchToGame() {
         Game game;
-        window.close();         // 关闭页面，进入游戏界面
-        game.run();             // 启动游戏
+        window.close();
+        game.run();
     }
 
     sf::RenderWindow window;
     Background background;
     sf::Texture buttonTexture;
     std::unique_ptr<Button> button;
-
     sf::Texture buttonTexture2;
     std::unique_ptr<Button> button2;
 
@@ -222,5 +229,5 @@ private:
     sf::Color transitionColor;
     sf::Clock clock;
 
-    int currentPage;  // 当前页面状态
+    int currentPage;
 };
