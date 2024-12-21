@@ -106,6 +106,7 @@ private:
     std::unique_ptr<Button> button;       // 开始按钮
     sf::Texture buttonTexture2;           // 第二按钮纹理
     std::unique_ptr<Button> button2;      // 第二按钮
+    sf::Image icon;                       // 图标成员变量
 
     // 过渡动画相关
     bool isTransitioning;                 // 是否正在过渡
@@ -211,7 +212,7 @@ private:
 public:
     // 构造函数：初始化应用程序
     Application()
-            : window(sf::VideoMode(1920, 1080), "Bird Ball Game"),
+            : window(sf::VideoMode(1920, 1080), L"哐哐当当雀雀球"),
               background("Images/background_image.png", window),
               isTransitioning(false), 
               transitionTime(2.0f), 
@@ -219,6 +220,11 @@ public:
               currentPage(1),
               alpha(255.0f)  // 初始化 alpha
     {
+        // 加载并设置窗口图标
+       if (icon.loadFromFile("Images/bird_2.png")) {  // 使用你的图标文件
+           window.setIcon(icon.getSize().x, icon.getSize().y, icon.getPixelsPtr());
+       }
+
         // 初始化渲染纹理
         if (!renderTexture.create(window.getSize().x, window.getSize().y)) {
             throw std::runtime_error("Failed to create render texture!");

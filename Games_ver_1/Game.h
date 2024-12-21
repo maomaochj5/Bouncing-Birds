@@ -236,12 +236,12 @@ enum GameState {
 class Game {
 private:
     // 窗口和渲染组件
-    sf::RenderWindow window;                    // 主游戏窗口
+    sf::RenderWindow window;                   // 主游戏窗口
     sf::RectangleShape centerZoneBorder;       // 中心目标区域边界
     sf::RectangleShape chargeBar;              // 蓄力条指示器
-
+    sf::Image icon;                            // 添加图标成员变量
     // 视觉资源
-    TextureManager textureManager;              // 纹理管理器
+    TextureManager textureManager;             // 纹理管理器
     sf::Texture backgroundTexture;             // 主游戏背景纹理
     sf::Sprite backgroundSprite;               // 主游戏背景精灵
     sf::Texture backgroundTextureEnd;          // 结束画面背景纹理
@@ -291,6 +291,10 @@ public:
         
         window.setFramerateLimit(60);    // 设置帧率限制
 
+        // 加载并设置窗口图标
+       if (icon.loadFromFile("Images/bird_2.png")) {  // 使用你的图标文件
+           window.setIcon(icon.getSize().x, icon.getSize().y, icon.getPixelsPtr());
+       }
         // 加载背景图片
         if (!backgroundTexture.loadFromFile("Images/background.png")) {
             std::cerr << "Error: Failed to load background image!" << std::endl;

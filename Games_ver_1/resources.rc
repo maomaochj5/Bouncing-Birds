@@ -1,44 +1,4 @@
 #include <windows.h>
-#include <winver.h>
 
-// 图标资源 (放在版本信息之前)
-IDI_MYICON ICON "bird.ico" // 确保 bird.ico 文件存在且路径正确
-
-// 版本信息
-VS_VERSION_INFO VERSIONINFO
-        FILEVERSION 1,0,0,10
-PRODUCTVERSION 1,0,0,10
-FILEFLAGSMASK 0x3fL
-#ifdef _DEBUG
-FILEFLAGS VS_FF_DEBUG
-#else
-FILEFLAGS 0x0L
-#endif
-FILEOS VOS__WINDOWS32
-FILETYPE VFT_APP
-FILESUBTYPE 0x0L
-BEGIN
-        BLOCK "StringFileInfo"
-BEGIN
-        BLOCK "080404b0" // 简体中文
-BEGIN
-        VALUE "CompanyName", "张瀚文程序设计大作业\0"
-VALUE "FileDescription", "哐哐当当雀雀球\0"
-VALUE "FileVersion", "1.0.0.10\0"
-VALUE "ProductVersion", "1.0.0.10\0"
-VALUE "LegalCopyright", "版权所有 (C) 张瀚文个人\0"
-VALUE "LegalTrademarks", "张瀚文个人\0"
-VALUE "OriginalFilename", "Game.exe\0"
-VALUE "ProductName", "哐哐当当雀雀球\0"
-VALUE "InternalName", "Game.exe\0"
-END
-        END
-
-BLOCK "VarFileInfo"
-BEGIN
-        VALUE "Translation", 0x804, 1200 // 简体中文
-END
-        END
-
-// 其他资源 (例如对话框、菜单等)
-// 如果没有其他资源，可以省略这一部分
+// 图标资源
+IDI_APP_ICON ICON "D:\\Project\\Games_1\\Games_ver_1\\code1.ico"
