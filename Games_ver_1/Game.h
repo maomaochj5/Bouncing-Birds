@@ -11,17 +11,27 @@
 #include <iostream>
 #include <cstring>
 
-constexpr int WINDOW_WIDTH = 1920;  // 窗口宽度
-constexpr int WINDOW_HEIGHT = 1080; // 窗口高度
-constexpr float PLAYER_RADIUS = 25.f;   // 玩家半径
-constexpr float ENEMY_RADIUS = 25.f;    // 敌方半径
-constexpr float REBOUND_COEFFICIENT = 0.8f; // 反弹系数
-constexpr float FRICTION_COEFFICIENT = 0.98f;   // 摩擦系数
-const sf::Vector2f CENTER_ZONE_POSITION(710, 290);  // 中心区域左上坐标
-const sf::Vector2f CENTER_ZONE_SIZE(500, 500);      // 中心区域大小
-constexpr int NUM_ENEMIES = 6;  // 敌方数量
-constexpr float CHARGE_MAX_TIME = 4.f;  // 蓄力时间
+// 窗口相关常量
+constexpr int WINDOW_WIDTH = 1920;      // 游戏窗口宽度（像素）
+constexpr int WINDOW_HEIGHT = 1080;     // 游戏窗口高度（像素）
 
+// 游戏对象尺寸常量
+constexpr float PLAYER_RADIUS = 25.f;   // 玩家球体半径
+constexpr float ENEMY_RADIUS = 25.f;    // 敌方球体半径
+
+// 物理相关常量
+constexpr float REBOUND_COEFFICIENT = 0.8f;    // 碰撞后的反弹系数（0-1之间，1为完全弹性碰撞）
+constexpr float FRICTION_COEFFICIENT = 0.98f;   // 地面摩擦系数（每帧速度衰减比例）
+
+// 中心区域（目标区域）相关常量
+const sf::Vector2f CENTER_ZONE_POSITION(710, 290);  // 中心区域左上角坐标
+const sf::Vector2f CENTER_ZONE_SIZE(500, 500);      // 中心区域的宽度和高度
+
+// 游戏机制相关常量
+constexpr int NUM_ENEMIES = 6;              // 场上敌方球体的数量
+constexpr float CHARGE_MAX_TIME = 4.f;      // 最大蓄力时间（秒）
+
+// 纹理管理器类：负责加载和管理所有游戏纹理
 class TextureManager {
 public:
     sf::Texture& getTexture(const std::string& filename) {
@@ -34,16 +44,20 @@ public:
     }
 
 private:
-    std::map<std::string, sf::Texture> textures;  // Store textures
+    // 存储容器
+    std::map<std::string, sf::Texture> textures;  // 纹理映射表
 };
 
-// Usage in GameObject
+// 游戏对象基类：所有可移动物体的基类
 class GameObject {
 public:
-    sf::Sprite sprite;
-    sf::Vector2f velocity;  // Velocity
-    float mass;  // Mass property
-    bool isStopped;
+    // 视觉组件
+    sf::Sprite sprite;                   // 精灵对象，用于渲染
+    
+    // 物理属性
+    sf::Vector2f velocity;              // 速度向量
+    float mass;                         // 质量
+    bool isStopped;                     // 停止状态标志
 
     GameObject(float radius, const std::string& textureFile, sf::Vector2f position, TextureManager& textureManager, float m = 1.0f)
             : velocity(0.f, 0.f), mass(m), isStopped(true) {
@@ -54,13 +68,14 @@ public:
     }
 
     void draw(sf::RenderWindow& window) const {
-        window.draw(sprite);  // Draw the sprite
+        window.draw(sprite);  // 绘制精灵
     }
 
     void updatePosition(float dt) {
         if (!isStopped) {
             sprite.move(velocity * dt);
-            velocity *= FRICTION_COEFFICIENT; // 摩擦减速
+            velocity *= FRICTION_COEFFICIENT; // 应用摩擦力
+            // 当速度足够小时停止物体
             if (std::abs(velocity.x) < 0.01f && std::abs(velocity.y) < 0.01f) {
                 isStopped = true;
                 velocity = {0.f, 0.f};
@@ -69,25 +84,25 @@ public:
     }
 
     void applyBoundaryCollision() {
-        auto bounds = sprite.getGlobalBounds();  // Get the global bounds of the sprite
+        auto bounds = sprite.getGlobalBounds();  // 获取精灵的边界框
 
-        // Check for left and right boundary collisions
+        // 检测左右边界碰撞
         if (bounds.left < 280 || bounds.left + bounds.width > WINDOW_WIDTH - 300) {
-            velocity.x = -velocity.x * REBOUND_COEFFICIENT;  // Reverse horizontal velocity
-            sprite.setPosition(std::max(bounds.width / 2, std::min(sprite.getPosition().x, WINDOW_WIDTH - bounds.width / 2)), sprite.getPosition().y);  // Keep sprite within bounds
+            velocity.x = -velocity.x * REBOUND_COEFFICIENT;  // 水平速度反向
+            sprite.setPosition(std::max(bounds.width / 2, std::min(sprite.getPosition().x, WINDOW_WIDTH - bounds.width / 2)), sprite.getPosition().y);
         }
 
-        // Check for top and bottom boundary collisions
+        // 检测上下边界碰撞
         if (bounds.top < 120 || bounds.top + bounds.height > WINDOW_HEIGHT) {
-            velocity.y = -velocity.y * REBOUND_COEFFICIENT;  // Reverse vertical velocity
-            sprite.setPosition(sprite.getPosition().x, std::max(bounds.height / 2, std::min(sprite.getPosition().y, WINDOW_HEIGHT - bounds.height / 2)));  // Keep sprite within bounds
+            velocity.y = -velocity.y * REBOUND_COEFFICIENT;  // 垂直速度反向
+            sprite.setPosition(sprite.getPosition().x, std::max(bounds.height / 2, std::min(sprite.getPosition().y, WINDOW_HEIGHT - bounds.height / 2)));
         }
     }
     void save(std::ofstream& file) const {
         std::vector<char> buffer(sizeof(float) * 4 + sizeof(bool) + sizeof(float));
         char* ptr = buffer.data();
 
-        sf::Vector2f pos = sprite.getPosition(); // Create a non-const copy
+        sf::Vector2f pos = sprite.getPosition(); // 创建非常量副本
 
         std::memcpy(ptr, &pos.x, sizeof(float));
         ptr += sizeof(float);
@@ -110,12 +125,12 @@ public:
 
         char* ptr = buffer.data();
 
-        sf::Vector2f pos; // Create a non-const Vector2f to receive the data
+        sf::Vector2f pos; // 创建非常量Vector2f来接收数据
         std::memcpy(&pos.x, ptr, sizeof(float));
         ptr += sizeof(float);
         std::memcpy(&pos.y, ptr, sizeof(float));
         ptr += sizeof(float);
-        sprite.setPosition(pos); // Now set the sprite's position using the non-const copy
+        sprite.setPosition(pos); 
 
         std::memcpy(&velocity.x, ptr, sizeof(float));
         ptr += sizeof(float);
@@ -127,37 +142,34 @@ public:
     }
 };
 
+// 碰撞处理器类：处理游戏对象之间的碰撞
 class CollisionHandler {
 public:static void applyCollision(GameObject& a, GameObject& b, sf::Sound& collisionSound) {
-        // Get the bounding boxes of the sprites
+        // 获取精灵的边界框
         sf::FloatRect aBounds = a.sprite.getGlobalBounds();
         sf::FloatRect bBounds = b.sprite.getGlobalBounds();
 
-        // Check for collision using bounding boxes
+        // 使用边界框检查碰撞
         if (aBounds.intersects(bBounds)) {
             collisionSound.play();
 
-            auto delta = a.sprite.getPosition() - b.sprite.getPosition();  // Update for sprite
+            auto delta = a.sprite.getPosition() - b.sprite.getPosition();  // 更新精灵位置
             float dist = std::sqrt(delta.x * delta.x + delta.y * delta.y);
 
-            // Calculate the normal and relative velocity
-            auto normal = delta / dist;  // Collision normal
+            // 计算法线和相对速度
+            auto normal = delta / dist;  // 碰撞法线
             auto relativeVelocity = a.velocity - b.velocity;
             float velocityAlongNormal = relativeVelocity.x * normal.x + relativeVelocity.y * normal.y;
 
-            if (velocityAlongNormal > 0) return;  // Moving apart
+            if (velocityAlongNormal > 0) return;  // 物体正在分离
 
-            // Update velocities
+            // 更新速度
             sf::Vector2f temp = a.velocity;
             a.velocity = 0.5f * (a.velocity + b.velocity + REBOUND_COEFFICIENT * (b.velocity - a.velocity));
             b.velocity = 0.5f * (b.velocity + temp + REBOUND_COEFFICIENT * (temp - b.velocity));
 
             a.isStopped = false;
             b.isStopped = false;
-
-            // Debug output
-            //std::cout << "Collision detected: a velocity: " << a.velocity.x << ", " << a.velocity.y
-            //          << " | b velocity: " << b.velocity.x << ", " << b.velocity.y << std::endl;
         }
     }
 };
@@ -165,9 +177,10 @@ public:static void applyCollision(GameObject& a, GameObject& b, sf::Sound& colli
 
 class ScoreManager {
 private:
-    int currentScore;
-    int highScore;
-    std::string filename;
+    // 分数相关
+    int currentScore;                   // 当前分数
+    int highScore;                      // 最高分数
+    std::string filename;               // 存档文件名
 
 public:
     ScoreManager(const std::string& file) : currentScore(0), filename(file) {
@@ -209,86 +222,102 @@ public:
 
     int getHighScore() const { return highScore; }
 
-    int& getCurrentScoreRef() { return currentScore; } // Correctly added
-    const int& getCurrentScoreRef() const { return currentScore; } // const version
+    int& getCurrentScoreRef() { return currentScore; } // 获取当前分数的引用
+    const int& getCurrentScoreRef() const { return currentScore; } // 常量版本
 };
 
-
+// 游戏状态枚举：定义游戏的不同状态
 enum GameState {
-    Playing,
-    EndScreen,
-    ArchiveView
+    Playing,                            // 游戏进行中
+    EndScreen,                          // 结束画面
+    ArchiveView                         // 存档查看
 };
 
 class Game {
 private:
-    sf::RenderWindow window;
-    sf::Font font;
-    sf::Text scoreText, highScoreText, finalScoreText, playerCountText, selectionText;
-    sf::RectangleShape chargeBar;
-    sf::RectangleShape centerZoneBorder;
-    sf::SoundBuffer collisionBuffer;
-    sf::Sound collisionSound;
-    TextureManager textureManager;
+    // 窗口和渲染组件
+    sf::RenderWindow window;                    // 主游戏窗口
+    sf::RectangleShape centerZoneBorder;       // 中心目标区域边界
+    sf::RectangleShape chargeBar;              // 蓄力条指示器
 
-    ScoreManager scoreManager;
-    std::vector<GameObject> enemies;
-    std::vector<GameObject> players;
+    // 视觉资源
+    TextureManager textureManager;              // 纹理管理器
+    sf::Texture backgroundTexture;             // 主游戏背景纹理
+    sf::Sprite backgroundSprite;               // 主游戏背景精灵
+    sf::Texture backgroundTextureEnd;          // 结束画面背景纹理
+    sf::Sprite backgroundSpriteEnd;            // 结束画面背景精灵
 
-    int normalCount;
-    int specialCount;
-    bool isCharging;
-    float chargeTime;
-    int selectedPlayerIndex;
-    int hadshoot;
+    // 文本和界面元素
+    sf::Font font;                             // 主游戏字体
+    sf::Text scoreText;                        // 当前分数显示
+    sf::Text highScoreText;                    // 最高分显示
+    sf::Text finalScoreText;                   // 最终分数显示
+    sf::Text playerCountText;                  // 剩余发射次数计数器
+    sf::Text selectionText;                    // 玩家选择指示器
 
+    // 音频组件
+    sf::SoundBuffer collisionBuffer;           // 碰撞音效缓冲
+    sf::Sound collisionSound;                  // 碰撞音效播放器
+    sf::Music backgroundMusic;                 // 背景音乐
 
-    sf::Texture backgroundTexture;
-    sf::Sprite backgroundSprite;
+    // 游戏管理器
+    ScoreManager scoreManager;                  // 分数管理器
 
-    sf::Texture backgroundTextureEnd;
-    sf::Sprite backgroundSpriteEnd;
+    // 游戏对象容器
+    std::vector<GameObject> enemies;            // 敌方球体列表
+    std::vector<GameObject> players;            // 玩家球体列表
 
-    bool viewArchiveMode;
-    sf::Music backgroundMusic;
-    bool allPlayersStopped;
-    GameState currentGameState;
+    // 游戏状态变量
+    GameState currentGameState;                 // 当前游戏状态
+    bool viewArchiveMode;                       // 存档查看模式标志
+    bool allPlayersStopped;                     // 所有玩家停止移动标志
 
+    // 游戏计数器
+    int normalCount;                            // 普通球数量
+    int specialCount;                           // 特殊球数量
+    int hadshoot;                               // 已发射次数
+    int selectedPlayerIndex;                    // 当前选中的玩家索引
 
+    // 蓄力系统变量
+    bool isCharging;                            // 蓄力状态标志
+    float chargeTime;                           // 当前蓄力时间
+
+    
 public:
     Game() : window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), L"哐哐当当雀雀球"),
              scoreManager("highscores.txt"),
              normalCount(2), specialCount(2), isCharging(false), chargeTime(0.f),
-             selectedPlayerIndex(0), hadshoot(0), viewArchiveMode(false) ,currentGameState(Playing){  // 默认没有选择
-        window.setFramerateLimit(60);
+             selectedPlayerIndex(0), hadshoot(0), viewArchiveMode(false), currentGameState(Playing) {
+        
+        window.setFramerateLimit(60);    // 设置帧率限制
 
         // 加载背景图片
         if (!backgroundTexture.loadFromFile("Images/background.png")) {
-            std::cerr << "Failed to load background image!" << std::endl;
+            std::cerr << "Error: Failed to load background image!" << std::endl;
         } else {
             backgroundSprite.setTexture(backgroundTexture);
         }
 
+        // 加载结束画面背景
         if (!backgroundTextureEnd.loadFromFile("Images/backgroundend.png")) {
-            std::cerr << "Failed to load background image!" << std::endl;
+            std::cerr << "Error: Failed to load end screen background!" << std::endl;
         } else {
             backgroundSpriteEnd.setTexture(backgroundTextureEnd);
         }
 
-        // 加载字体，并检查加载是否成功
+        // 加载字体
         if (!font.loadFromFile("chinese.ttf")) {
-            std::cerr << "Failed to load font: chinese.ttf" << std::endl;
-            // 处理字体加载失败的情况，例如使用默认字体或退出程序
-            return; // 这里选择直接退出构造函数
+            std::cerr << "Error: Could not load font file: chinese.ttf" << std::endl;
+            return;
         }
 
         // 加载并播放背景音乐
         if (!backgroundMusic.openFromFile("background_music.flac")) {
-            std::cerr << "Failed to load background music!" << std::endl;
+            std::cerr << "Error: Failed to load background music!" << std::endl;
         } else {
-            backgroundMusic.setLoop(true); // 设置循环播放
-            backgroundMusic.setVolume(50.f); // 设置音量 (0.0f - 100.0f)
-            backgroundMusic.play(); // 开始播放
+            backgroundMusic.setLoop(true);     // 设置循环播放
+            backgroundMusic.setVolume(50.f);   // 设置音量 (0.0f - 100.0f)
+            backgroundMusic.play();            // 开始播放
         }
 
         initializeText(scoreText, 30, sf::Vector2f(WINDOW_WIDTH - 600, 140));
@@ -588,7 +617,7 @@ private:
     void saveGame(const std::string& filename) {
         std::ofstream file(filename, std::ios::binary);
         if (file.is_open()) {
-            int currentScore = scoreManager.getCurrentScore(); // 使用局部变量
+            int currentScore = scoreManager.getCurrentScore(); // 获取当前分数
             file.write(reinterpret_cast<const char*>(&currentScore), sizeof(int));
             file.write(reinterpret_cast<const char*>(&hadshoot), sizeof(int));
 
