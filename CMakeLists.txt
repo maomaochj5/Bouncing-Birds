@@ -6,14 +6,14 @@ set(CMAKE_CXX_STANDARD 23)
 # Windows 特定配置
 if(WIN32)
     enable_language(RC)
-    set(APP_ICON_RESOURCE_WINDOWS "${CMAKE_SOURCE_DIR}/Games_ver_1/resources.rc")
+    set(APP_ICON_RESOURCE_WINDOWS "${CMAKE_SOURCE_DIR}/src/resources.rc")
 endif()
 
 # 添加可执行文件
 add_executable(Games_1
-    Games_ver_1/Test_2.cpp
-    Games_ver_1/Game.h
-    Games_ver_1/Menu.h
+        src/Test_2.cpp
+        src/Game.h
+        src/Menu.h
     ${APP_ICON_RESOURCE_WINDOWS}
 )
 

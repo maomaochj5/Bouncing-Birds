@@ -1,4 +1,0 @@
-#include <windows.h>
-
-// 图标资源
-IDI_APP_ICON ICON "D:\\Project\\Games_1\\Games_ver_1\\code1.ico"
