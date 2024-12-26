@@ -31,6 +31,9 @@ const sf::Vector2f CENTER_ZONE_SIZE(500, 500);      // 中心区域的宽度和�
 constexpr int NUM_ENEMIES = 6;              // 场上敌方球体的数量
 constexpr float CHARGE_MAX_TIME = 4.f;      // 最大蓄力时间（秒）
 
+// Add this with other constants at the top
+constexpr const char* FINAL_SAVE_FILE = "final_save.bin";
+
 // 纹理管理器类：负责加载和管理所有游戏纹理
 class TextureManager {
 public:
@@ -282,12 +285,15 @@ private:
     bool isCharging;                            // 蓄力状态标志
     float chargeTime;                           // 当前蓄力时间
 
-    
+
+    int archiveShootCount;                      // 存档查看模式下的额外击球次数
+
 public:
     Game() : window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGHT), L"哐哐当当雀雀球"),
              scoreManager("highscores.txt"),
              normalCount(2), specialCount(2), isCharging(false), chargeTime(0.f),
-             selectedPlayerIndex(0), hadshoot(0), viewArchiveMode(false), currentGameState(Playing) {
+             selectedPlayerIndex(0), hadshoot(0), viewArchiveMode(false), 
+             currentGameState(Playing), archiveShootCount(0) {  // 初始化新变量
         
         window.setFramerateLimit(60);    // 设置帧率限制
 
@@ -358,21 +364,27 @@ public:
                     checkCollisions();
                     updateEnemyCount();
                     updateMessage();
-
                     allPlayersStopped = std::all_of(players.begin(), players.end(), [](const GameObject& player) {
                         return player.isStopped;
                     });
 
                     if (hadshoot >= players.size() && allPlayersStopped) {
-                        saveGame("savegame.bin");
+                        saveGame(FINAL_SAVE_FILE);  
                         currentGameState = EndScreen;
                     }
                     render();
                     break;
+
                 case EndScreen:
                     renderEndScene();
                     break;
+
                 case ArchiveView:
+                    if (isCharging) updateCharge();
+                    updateGameObjects();
+                    checkCollisions();
+                    updateEnemyCount();
+                    updateMessage();
                     render();
                     break;
             }
@@ -442,7 +454,38 @@ private:
             if (event.type == sf::Event::Closed)
                 window.close();
 
-            if (currentGameState == Playing) { // 只在 Playing 状态下处理发射相关事件
+            if (currentGameState == Playing) {  // 正常游戏模式
+                if (event.type == sf::Event::KeyPressed) {
+                    if (event.key.code == sf::Keyboard::R) {
+                        loadGame("savegame.bin");
+                        std::cout << "Game loaded!" << std::endl;
+                    }
+                    if (event.key.code == sf::Keyboard::S) {
+                        saveGame("savegame.bin");
+                        std::cout << "Game saved!" << std::endl;
+                    }
+                    if (event.key.code == sf::Keyboard::Num1) selectedPlayerIndex = 0;
+                    if (event.key.code == sf::Keyboard::Num2) selectedPlayerIndex = 1;
+                    if (event.key.code == sf::Keyboard::Num3) selectedPlayerIndex = 2;
+                    if (event.key.code == sf::Keyboard::Num4) selectedPlayerIndex = 3;
+                }
+
+                // 正常游戏模式下保持发射次数限制
+                if (hadshoot < players.size()) {
+                    if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left) {
+                        isCharging = true;
+                        chargeTime = 0.f;
+                    }
+
+                    if (event.type == sf::Event::MouseButtonReleased && event.mouseButton.button == sf::Mouse::Left && isCharging) {
+                        sf::Vector2f mousePos = sf::Vector2f(sf::Mouse::getPosition(window));
+                        launchPlayer(mousePos);
+                        isCharging = false;
+                        hadshoot++;
+                    }
+                }
+            } 
+            else if (currentGameState == ArchiveView) {  // 存档查看模式
                 if (event.type == sf::Event::KeyPressed) {
                     if (event.key.code == sf::Keyboard::Num1) selectedPlayerIndex = 0;
                     if (event.key.code == sf::Keyboard::Num2) selectedPlayerIndex = 1;
@@ -450,21 +493,28 @@ private:
                     if (event.key.code == sf::Keyboard::Num4) selectedPlayerIndex = 3;
                 }
 
-                if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left && hadshoot < players.size()) {
+                // 存档查看模式下无发射次数限制
+                if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left) {
                     isCharging = true;
                     chargeTime = 0.f;
                 }
 
-                if (event.type == sf::Event::MouseButtonReleased && event.mouseButton.button == sf::Mouse::Left && isCharging) {
+                if (event.type == sf::Event::MouseButtonReleased && 
+                    event.mouseButton.button == sf::Mouse::Left && 
+                    isCharging) {
                     sf::Vector2f mousePos = sf::Vector2f(sf::Mouse::getPosition(window));
                     launchPlayer(mousePos);
                     isCharging = false;
-                    hadshoot++;
+                    archiveShootCount++;  // 增加额外击球计数
                 }
-            } else if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::V) { // V 键事件处理
+            }
+
+            // V键切换时重置计数
+            if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::V) {
                 if (currentGameState == EndScreen) {
-                    loadGame("savegame.bin");
+                    loadGame(FINAL_SAVE_FILE);
                     currentGameState = ArchiveView;
+                    archiveShootCount = 0;  // 重置额外击球计数
                 } else if (currentGameState == ArchiveView) {
                     currentGameState = EndScreen;
                 }
@@ -473,7 +523,12 @@ private:
     }
 
     void updateCharge() {
-        if (isCharging && hadshoot < players.size()) { //添加hadshoot判断
+        if (isCharging) {
+            if (currentGameState == Playing && hadshoot >= players.size()) {
+                // 在正常游戏模式下且已达到发射限制时，不更新蓄力
+                return;
+            }
+            
             chargeTime += 0.016f;
             if (chargeTime > CHARGE_MAX_TIME) {
                 chargeTime = CHARGE_MAX_TIME;
@@ -484,7 +539,12 @@ private:
 
 
     void launchPlayer(const sf::Vector2f& mousePos) {
-        if (selectedPlayerIndex >= 0 && selectedPlayerIndex < players.size() && hadshoot < players.size()) {
+        if (currentGameState == Playing && hadshoot >= players.size()) {
+            // 在正常游戏模式下检查发射限制
+            return;
+        }
+
+        if (selectedPlayerIndex >= 0 && selectedPlayerIndex < players.size()) {
             auto& player = players[selectedPlayerIndex];
             sf::Vector2f direction = mousePos - player.sprite.getPosition();
             float length = std::sqrt(direction.x * direction.x + direction.y * direction.y);
@@ -532,7 +592,13 @@ private:
         //确定文字信息
         void updateMessage() {
             highScoreText.setString(L"历史记录： " + std::to_wstring(scoreManager.getHighScore()));
-            playerCountText.setString(L"剩余次数： " + std::to_wstring(std::max(0, (int)players.size() - hadshoot)));
+            
+            // 根据游戏状态显示不同的信息
+            if (currentGameState == Playing) {
+                playerCountText.setString(L"剩余次数： " + std::to_wstring(std::max(0, (int)players.size() - hadshoot)));
+            } else if (currentGameState == ArchiveView) {
+                playerCountText.setString(L"额外击球： " + std::to_wstring(archiveShootCount));
+            }
         }
 
 
@@ -675,5 +741,4 @@ private:
             std::cerr << "Error loading game!" << std::endl;
         }
     }
-
 };

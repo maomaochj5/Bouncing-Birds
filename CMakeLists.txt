@@ -10,7 +10,7 @@ if(WIN32)
 endif()
 
 # 添加可执行文件
-add_executable(Games_1 WIN32
+add_executable(Games_1
     Games_ver_1/Test_2.cpp
     Games_ver_1/Game.h
     Games_ver_1/Menu.h
