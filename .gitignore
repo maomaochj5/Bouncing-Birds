@@ -94,3 +94,29 @@ fabric.properties
 
 # Dependencies
 Dependencies/
+/src/.idea/.gitignore
+/build/Images/background.png
+/build/Images/background_image.png
+/build/Images/backgroundend.png
+/build/Images/bird.ico
+/build/Images/bird_1.png
+/build/Images/bird_2.png
+/build/.cmake/api/v1/reply/cache-v2-f27ac14adf0ed0264a25.json
+/build/.cmake/api/v1/reply/cmakeFiles-v1-ec725fb022e86550725c.json
+/build/.cmake/api/v1/reply/codemodel-v2-89a4ccdba433ae5d5a52.json
+/build/.cmake/api/v1/reply/directory-.-Debug-d0094a50bb2071803777.json
+/.idea/Games_1.iml
+/src/.idea/Games_ver_1.iml
+/build/.cmake/api/v1/reply/index-2024-12-26T10-00-56-0885.json
+/.idea/misc.xml
+/.idea/modules.xml
+/src/.idea/modules.xml
+/build/.cmake/api/v1/query/client-vscode/query.json
+/build/Images/second_botton.png
+/build/Images/second_page.png
+/.vscode/settings.json
+/build/Images/start_icon.png
+/build/.cmake/api/v1/reply/target-Games_1-Debug-f6a46ed1684dfe130f3e.json
+/build/.cmake/api/v1/reply/toolchains-v1-bf705f5d25d2d8716ed4.json
+/.idea/vcs.xml
+/src/.idea/vcs.xml
