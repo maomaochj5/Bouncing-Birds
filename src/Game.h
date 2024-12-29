@@ -726,7 +726,6 @@ private:
             sf::Vector2f mousePos = sf::Vector2f(sf::Mouse::getPosition(window));
             launchPlayer(mousePos);
             isCharging = false;
-            if (currentGameState == Playing) hadshoot++;
         }
     }
 
@@ -775,6 +774,13 @@ private:
 
             player.velocity = direction * (chargeTime / CHARGE_MAX_TIME * 250.f);
             player.isStopped = false;
+
+            // 在这里增加计数，而不是在事件处理中
+            if (currentGameState == Playing) {
+                hadshoot++;
+            } else if (currentGameState == ArchiveView) {
+                archiveShootCount++;
+            }
         }
     }
 
@@ -913,6 +919,9 @@ private:
             // 保存已发射次数
             file.write(reinterpret_cast<const char*>(&hadshoot), sizeof(int));
 
+            // 保存额外击球次数
+            file.write(reinterpret_cast<const char*>(&archiveShootCount), sizeof(int));
+
             // 保存敌方球体状态
             int enemyCount = enemies.size();
             file.write(reinterpret_cast<const char*>(&enemyCount), sizeof(int));
@@ -943,6 +952,9 @@ private:
             
             // 加载已发射次数
             file.read(reinterpret_cast<char*>(&hadshoot), sizeof(int));
+
+            // 加载额外击球次数
+            file.read(reinterpret_cast<char*>(&archiveShootCount), sizeof(int));
 
             // 加载敌方球体状态
             int enemyCount;

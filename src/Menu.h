@@ -310,6 +310,7 @@ private:
             L"善用场地边界反弹",
             L"把握蓄力时机",
             L"",
+            L"Made by Hanwen Zhang",
             L"按 [P] 关闭说明"
         };
 
