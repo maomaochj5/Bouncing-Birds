@@ -11,7 +11,7 @@ endif()
 
 # 添加可执行文件
 add_executable(Games_1 WIN32
-        src/Test_2.cpp
+        src/Main.cpp
         src/Game.h
         src/Menu.h
     ${APP_ICON_RESOURCE_WINDOWS}
